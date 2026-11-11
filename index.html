@@ -194,6 +194,8 @@ dialog h3{margin:0;font-size:18px}
       <h2>הזנה אוטומטית</h2>
       <label class="check" for="autoIn"><input type="checkbox" id="autoIn">כניסה נרשמת לבד בפתיחה הראשונה ביום</label>
       <p class="hint" style="margin:0">רק בימים א׳–ה׳ שאינם חג, לפני 12:00, וכשעוד לא הוזן כלום להיום. אפשר לבטל או לתקן מיד.</p>
+      <label class="check" for="autoOut"><input type="checkbox" id="autoOut">יציאה נרשמת לבד בפתיחה אחרי 12:00</label>
+      <p class="hint" style="margin:0">רק כשיש כניסה פתוחה להיום. אם לחצת ביטול, היציאה לא תירשם שוב לבד במשך שעה.</p>
     </div>
     <div class="card">
       <h2>גיבוי</h2>
@@ -220,7 +222,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.4</p>
+    <p class="hint" id="ver">גרסה 1.5</p>
   </section>
 
   <dialog id="edit">
@@ -369,20 +371,27 @@ function wireSegs(box,getKey){
     rows.splice(+b.dataset.del,1);extra[k]=false;setSegs(k,rows);renderAll(true)});
 }
 const todayKey=()=>iso(new Date());
-function punchNow(){
+function punchNow(onUndo){
   const k=todayKey(),r=S.days[k],p=segs(r).map(x=>x.slice()),o=p.find(x=>x[0]&&!x[1]),t=nowHM();
   const before=r?JSON.stringify(r):null;
-  const undo=()=>{if(before)S.days[k]=JSON.parse(before);else delete S.days[k];save();renderAll(true)};
+  const undo=()=>{if(before)S.days[k]=JSON.parse(before);else delete S.days[k];if(typeof onUndo==='function')onUndo();save();renderAll(true)};
   const msg=o?'יציאה נשמרה: '+t:'כניסה נשמרה: '+t;
   if(o)o[1]=t;else p.push([t,'']);
   extra[k]=false;setSegs(k,p);S.lastPunch=Date.now();save();renderAll(true);toast(msg,undo);
 }
-// first opening of a workday before noon records the entry time by itself (can be undone or edited)
+// Opening the app records the time by itself: before noon the first opening of a workday is the entry,
+// from noon on an opening while an entry is still open is the exit. Both can be undone or edited.
 function autoIn(){
-  const now=new Date();
-  if(S.autoIn===false||demo||now.getHours()>=12||now.getHours()<5)return;
-  if(!isWorkday(now.getDay())||isDayOff(holiday(now))||segs(S.days[todayKey()]).length)return;
-  punchNow();
+  const now=new Date(),h=now.getHours(),r=S.days[todayKey()];
+  if(demo||h<5)return;
+  if(h<12){
+    if(S.autoIn===false||!isWorkday(now.getDay())||isDayOff(holiday(now))||segs(r).length)return;
+    punchNow();
+  }else{
+    // after an undo, wait an hour before recording an exit again
+    if(S.autoOut===false||!openSeg(r)||Date.now()-(S.outUndo||0)<60*60000)return;
+    punchNow(()=>{S.outUndo=Date.now()});
+  }
 }
 function renderToday(force){
   const now=new Date(),k=iso(now),r=S.days[k]||{};
@@ -517,7 +526,7 @@ function csv(){
 }
 function restore(text){
   try{const o=JSON.parse(text);if(!o||typeof o.days!=='object')throw 0;
-    S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup,autoIn:o.autoIn};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
+    S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup,autoIn:o.autoIn,autoOut:o.autoOut};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
   catch(e){toast('הטקסט אינו גיבוי תקין')}
 }
 
@@ -557,7 +566,7 @@ async function readShot(file){
 /* ---------- wiring ---------- */
 function renderAll(force){$('demoBar').hidden=!demo;renderToday(force);renderMonth();renderStats();if($('edit').open)renderEdit(force);
   if(document.activeElement!==$('quota'))$('quota').value=toHM(S.quota);
-  $('autoIn').checked=S.autoIn!==false;
+  $('autoIn').checked=S.autoIn!==false;$('autoOut').checked=S.autoOut!==false;
   $('lastBackup').textContent=S.lastBackup?'גיבוי אחרון נשלח ב-'+S.lastBackup.split('-').reverse().join('.'):'עדיין לא נשלח גיבוי.'}
 function showTab(t){
   ['today','month','stats','settings'].forEach(n=>$('v-'+n).hidden=n!==t);
@@ -569,8 +578,9 @@ function start(){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
   wireSegs($('tSegs'),todayKey);wireSegs($('eSegs'),()=>editKey);
   $('tNote').onchange=e=>{setSegs(todayKey(),null,e.target.value.trim());renderAll()};
-  $('punchNow').onclick=punchNow;
+  $('punchNow').onclick=()=>punchNow();
   $('autoIn').onchange=e=>{S.autoIn=e.target.checked;save()};
+  $('autoOut').onchange=e=>{S.autoOut=e.target.checked;save()};
   $('tAdd').onclick=()=>{extra[todayKey()]=true;renderAll(true)};
   $('openDays').onclick=e=>{const b=e.target.closest('button');if(b)openEdit(b.dataset.k)};
   document.querySelectorAll('.mnav button').forEach(b=>b.onclick=()=>{
