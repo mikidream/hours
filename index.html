@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2452c9">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>שעון השעות שלי</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap">
+<style>
+/* Layout: one-column phone app. Balance readout on top, today's punch card under it, tab bar at the bottom. */
+:root{
+  --bg:#eef1f6; --surface:#ffffff; --sunken:#e3e8f0; --line:#d3dae6;
+  --fg:#16202e; --muted:#5b687c;
+  --accent:#2452c9; --on-accent:#ffffff;
+  --pos:#127a4c; --pos-bg:#dcf2e6; --neg:#b93a2f; --neg-bg:#f9e1dd;
+  --font:"Heebo",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f141c; --surface:#19212d; --sunken:#222c3a; --line:#303c4e;
+  --fg:#e8edf5; --muted:#98a5b8;
+  --accent:#7ea2ff; --on-accent:#0c1322;
+  --pos:#58cf96; --pos-bg:#143526; --neg:#ff8a7d; --neg-bg:#41201c; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f141c; --surface:#19212d; --sunken:#222c3a; --line:#303c4e;
+  --fg:#e8edf5; --muted:#98a5b8;
+  --accent:#7ea2ff; --on-accent:#0c1322;
+  --pos:#58cf96; --pos-bg:#143526; --neg:#ff8a7d; --neg-bg:#41201c; color-scheme:dark }
+
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.45}
+*{box-sizing:border-box}
+#app{max-width:560px;margin:0 auto;padding-block:16px 96px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:16px}
+.num{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+h1{font-size:15px;font-weight:500;color:var(--muted);margin:0}
+h2{font-size:14px;font-weight:700;margin:0;color:var(--muted);letter-spacing:.02em}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.view{display:flex;flex-direction:column;gap:16px}
+.demo{background:var(--sunken);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--muted)}
+
+/* balance readout */
+.balance{display:flex;flex-direction:column;gap:2px;padding-block:8px}
+.balance .big{font-size:64px;font-weight:800;line-height:1;letter-spacing:-.02em}
+.balance .lbl{font-size:15px;color:var(--muted)}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:700}
+.pill.pos{background:var(--pos-bg)} .pill.neg{background:var(--neg-bg)} .pill.zero{background:var(--sunken);color:var(--muted)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.segs{display:flex;flex-direction:column;gap:10px}
+.seg-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.seg-row label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);font-weight:500;min-width:0}
+.seg-row .x{width:44px;height:48px;border:1px solid var(--line);background:var(--surface);border-radius:10px;color:var(--neg);font-size:16px}
+.warn{background:var(--neg-bg);color:var(--neg);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:15px}
+.warn button{border:0;background:none;color:inherit;font-weight:700;text-decoration:underline;text-align:start;padding:2px 0}
+.hol{display:block;font-size:11px;color:var(--muted);line-height:1.2}
+.multi{font-size:11px;color:var(--muted)}
+.punch{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.punch label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);font-weight:500;min-width:0}
+input[type=time],textarea,input[type=text]{background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:10px;width:100%;min-width:0}
+input[type=time]{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;direction:ltr}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;font-weight:700;font-size:15px}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.danger{color:var(--neg)}
+.btn.wide{width:100%}
+.btn.big{font-size:18px;padding:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row > .btn{flex:1 1 auto}
+.facts{display:flex;flex-direction:column;gap:6px;font-size:15px}
+.facts div{display:flex;justify-content:space-between;gap:12px}
+.facts span:first-child{color:var(--muted)}
+.facts b{font-weight:700}
+.err{color:var(--neg);font-size:14px}
+.hint{color:var(--muted);font-size:13px}
+
+/* month nav + table */
+.mnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mnav strong{font-size:20px;font-weight:800}
+.mnav button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:20px;line-height:1}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{font-size:12px;font-weight:500;color:var(--muted);text-align:start;padding:6px 4px;border-bottom:1px solid var(--line)}
+td{padding:9px 4px;border-bottom:1px solid var(--line)}
+tr.day{cursor:pointer}
+tr.off td{color:var(--muted)}
+tr.off{background:var(--sunken)}
+tr.today td:first-child{font-weight:800;color:var(--accent)}
+td.d,th.d{text-align:end}
+tfoot td{font-weight:800;border-bottom:0}
+.note-dot{color:var(--accent)}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile span{font-size:12px;color:var(--muted)}
+.tile b{font-size:22px;font-weight:800}
+svg text{font-family:var(--font);font-size:11px;fill:var(--muted)}
+.hist{display:flex;flex-direction:column}
+.hist button{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border:0;border-bottom:1px solid var(--line);background:none;width:100%;text-align:start}
+
+/* tab bar */
+nav.tabs{position:fixed;inset:auto 0 0 0;background:var(--surface);border-top:1px solid var(--line);
+  display:flex;justify-content:center;z-index:5;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+nav.tabs div{display:flex;width:100%;max-width:560px}
+nav.tabs button{flex:1;border:0;background:none;padding:14px 4px;font-weight:700;font-size:14px;color:var(--muted);border-top:3px solid transparent}
+nav.tabs button[aria-selected=true]{color:var(--accent);border-top-color:var(--accent)}
+
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--fg);padding:18px;width:min(420px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(8,12,20,.55)}
+dialog form,dialog .stack{display:flex;flex-direction:column;gap:14px}
+dialog h3{margin:0;font-size:18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--sunken);border-radius:999px;padding:8px 14px;font-weight:700;font-size:18px}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#ocrImg{max-height:180px;object-fit:contain;border-radius:8px;background:var(--sunken)}
+#toast{position:fixed;inset:auto 16px calc(84px + env(safe-area-inset-bottom,0px)) 16px;margin:0 auto;max-width:420px;background:var(--fg);color:var(--bg);
+  border-radius:10px;padding:10px 14px;text-align:center;font-weight:500;z-index:9}
+@media (prefers-reduced-motion:no-preference){ .btn:active,.chip:active{transform:scale(.97)} }
+</style>
+
+<div id="app" dir="rtl" lang="he">
+  <div id="demoBar" class="demo" hidden>תצוגה מקדימה עם הנתונים מהאקסל שלך (אוקטובר–נובמבר 2026). שינויים כאן לא נשמרים באופן אמין.</div>
+
+  <section class="view" id="v-today">
+    <h1 id="todayTitle"></h1>
+    <div class="balance">
+      <span class="lbl" id="balLbl"></span>
+      <span class="big num" id="balBig"></span>
+      <span class="lbl" id="balSub"></span>
+    </div>
+    <div class="warn" id="openDays" hidden></div>
+    <div class="card">
+      <h2>היום</h2>
+      <div class="segs" id="tSegs"></div>
+      <button class="btn primary big wide" id="punchNow" type="button"></button>
+      <button class="btn wide" id="tAdd" type="button">יצאתי וחזרתי: הוספת כניסה נוספת</button>
+      <div class="err" id="todayErr" hidden></div>
+      <div class="facts" id="todayFacts"></div>
+      <label class="hint" for="tNote">הערה<input type="text" id="tNote" placeholder="למשל: חצי יום חופש"></label>
+      <button class="btn wide" id="shotBtn" type="button">קריאת שעה מצילום מסך של חילן</button>
+      <input type="file" id="shotFile" accept="image/*" hidden>
+    </div>
+    <div class="card" id="forecastCard">
+      <h2>עד סוף החודש</h2>
+      <div class="facts" id="forecast"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-month" hidden>
+    <div class="mnav"><button type="button" data-m="-1" aria-label="חודש קודם">›</button><strong data-mtitle></strong><button type="button" data-m="1" aria-label="חודש הבא">‹</button></div>
+    <div class="card" style="padding:8px 12px">
+      <table>
+        <thead><tr><th>תאריך</th><th>כניסה</th><th>יציאה</th><th>סה״כ</th><th class="d">יתרה</th></tr></thead>
+        <tbody id="mBody"></tbody>
+        <tfoot><tr><td colspan="3">סה״כ החודש</td><td class="num" id="mTot"></td><td class="d num" id="mBal"></td></tr></tfoot>
+      </table>
+    </div>
+    <p class="hint">לחיצה על יום פותחת עריכה. יום בלי שעות לא משפיע על היתרה, כמו באקסל.</p>
+  </section>
+
+  <section class="view" id="v-stats" hidden>
+    <div class="mnav"><button type="button" data-m="-1" aria-label="חודש קודם">›</button><strong data-mtitle></strong><button type="button" data-m="1" aria-label="חודש הבא">‹</button></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="card">
+      <h2>יתרה מצטברת לאורך החודש (שעות)</h2>
+      <div id="chart" dir="ltr"></div>
+    </div>
+    <div class="card">
+      <h2>חודשים קודמים</h2>
+      <div class="hist" id="hist"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-settings" hidden>
+    <div class="card">
+      <h2>מכסה יומית</h2>
+      <label class="hint" for="quota">שעות ליום עבודה<input type="time" id="quota"></label>
+    </div>
+    <div class="card">
+      <h2>גיבוי</h2>
+      <p class="hint" style="margin:0">הנתונים נשמרים רק בטלפון הזה. כדאי לשלוח גיבוי פעם בחודש.</p>
+      <p class="hint" style="margin:0" id="lastBackup"></p>
+      <div class="row">
+        <button class="btn primary" id="shareJson" type="button">שליחת גיבוי ל-Drive / מייל</button>
+        <button class="btn" id="expJson" type="button">שמירת קובץ גיבוי</button>
+        <button class="btn" id="copyJson" type="button">העתקת גיבוי</button>
+        <button class="btn" id="expCsv" type="button">ייצוא לאקסל (CSV)</button>
+      </div>
+      <label class="hint" for="impText">שחזור: הדבקת גיבוי כאן או בחירת קובץ<textarea id="impText" rows="3" dir="ltr"></textarea></label>
+      <div class="row">
+        <button class="btn" id="impBtn" type="button">שחזור מהטקסט</button>
+        <button class="btn" id="impFileBtn" type="button">שחזור מקובץ</button>
+        <input type="file" id="impFile" accept=".json,.txt,application/json,text/plain" hidden>
+      </div>
+    </div>
+    <div class="card">
+      <h2>מחיקה</h2>
+      <button class="btn danger" id="wipe" type="button">מחיקת כל הנתונים</button>
+      <div class="row" id="wipeConfirm" hidden>
+        <button class="btn danger" id="wipeYes" type="button">כן, למחוק הכול</button>
+        <button class="btn" id="wipeNo" type="button">ביטול</button>
+      </div>
+    </div>
+    <p class="hint" id="ver">גרסה 1.2</p>
+  </section>
+
+  <dialog id="edit">
+    <div class="stack">
+      <h3 id="editTitle"></h3>
+      <div class="segs" id="eSegs"></div>
+      <button class="btn" type="button" id="eAdd">הוספת כניסה נוספת</button>
+      <label class="hint" for="eNote">הערה<input type="text" id="eNote"></label>
+      <div class="err" id="editErr" hidden></div>
+      <div class="row">
+        <button class="btn primary" type="button" id="eClose">סיום</button>
+        <button class="btn danger" type="button" id="eClear">ניקוי היום</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="ocr">
+    <div class="stack">
+      <h3>קריאה מצילום מסך</h3>
+      <img id="ocrImg" alt="צילום המסך שנבחר">
+      <div id="ocrStatus" class="hint"></div>
+      <div class="chips" id="ocrChips"></div>
+      <label class="hint" for="ocrTime">השעה שתישמר<input type="time" id="ocrTime"></label>
+      <div class="seg">
+        <button class="chip" type="button" id="ocrAsIn" aria-pressed="true">כניסה</button>
+        <button class="chip" type="button" id="ocrAsOut" aria-pressed="false">יציאה</button>
+      </div>
+      <div class="row">
+        <button class="btn primary" type="button" id="ocrSave">שמירה להיום</button>
+        <button class="btn" type="button" id="ocrCancel">ביטול</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" hidden role="status"></div>
+</div>
+
+<nav class="tabs" dir="rtl"><div role="tablist">
+  <button role="tab" data-tab="today" aria-selected="true">היום</button>
+  <button role="tab" data-tab="month" aria-selected="false">חודש</button>
+  <button role="tab" data-tab="stats" aria-selected="false">סטטיסטיקה</button>
+  <button role="tab" data-tab="settings" aria-selected="false">הגדרות</button>
+</div></nav>
+
+<script>
+(function(){
+'use strict';
+const KEY='hours-app-v1';
+const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const DAYS=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+const DAYS_FULL=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+const $=id=>document.getElementById(id);
+let S={days:{},quota:480};
+let demo=false;
+
+function load(){
+  let raw=null;
+  try{raw=localStorage.getItem(KEY)}catch(e){}
+  if(raw){try{S=Object.assign(S,JSON.parse(raw))}catch(e){}}
+  else if(window.__SEED__){S=Object.assign(S,JSON.parse(JSON.stringify(window.__SEED__)));demo=true}
+  if(window.__SEED__)demo=true;
+  migrate();
+}
+// a day is {p:[[in,out],...], note}; older records had a single in/out
+function migrate(){
+  Object.keys(S.days).forEach(k=>{const r=S.days[k];
+    if(!r.p&&(r.in||r.out)){r.p=[[r.in||'',r.out||'']]}
+    delete r.in;delete r.out;
+    if(!(r.p&&r.p.length)&&!r.note)delete S.days[k]});
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const toMin=t=>{if(!t)return null;const p=t.split(':');return +p[0]*60+ +p[1]};
+const toHM=m=>pad(Math.floor(m/60)%24)+':'+pad(m%60);
+const fmtDur=m=>Math.floor(Math.abs(m)/60)+':'+pad(Math.abs(m)%60);
+const fmtBal=m=>(m>0?'+':m<0?'−':'')+fmtDur(m);
+const cls=m=>m>0?'pos':m<0?'neg':'zero';
+const nowHM=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())};
+
+// Same rule as the spreadsheet: (out − in) − quota; a day without both times counts as 0.
+// A day with several punches is the sum of its parts; a day with a missing exit is not counted until it is completed.
+const segs=r=>(r&&r.p)||[];
+function worked(r){
+  const p=segs(r);if(!p.length)return null;let t=0;
+  for(const x of p){if(!x[0]||!x[1])return null;const w=toMin(x[1])-toMin(x[0]);if(w<=0)return null;t+=w}
+  return t;
+}
+const firstIn=r=>{const p=segs(r);return p.length?p[0][0]:''};
+const lastOut=r=>{const p=segs(r);return p.length?p[p.length-1][1]:''};
+const openSeg=r=>segs(r).find(x=>x[0]&&!x[1]);
+const badOrder=r=>segs(r).some(x=>x[0]&&x[1]&&toMin(x[1])<=toMin(x[0]));
+const incomplete=r=>segs(r).some(x=>!x[0]!==!x[1]);
+
+/* Israeli holidays from the Hebrew calendar (labels only; they never change the balance) */
+const hebFmt=(()=>{try{return new Intl.DateTimeFormat('en-u-ca-hebrew',{day:'numeric',month:'long'})}catch(e){return null}})();
+const HOL={Tishri:{1:'ראש השנה',2:'ראש השנה',9:'ערב יום כיפור',10:'יום כיפור',14:'ערב סוכות',15:'סוכות',16:'חול המועד',17:'חול המועד',18:'חול המועד',19:'חול המועד',20:'חול המועד',21:'הושענא רבה',22:'שמחת תורה'},
+  Elul:{29:'ערב ראש השנה'},Nisan:{14:'ערב פסח',15:'פסח',16:'חול המועד',17:'חול המועד',18:'חול המועד',19:'חול המועד',20:'חול המועד',21:'שביעי של פסח'},
+  Sivan:{5:'ערב שבועות',6:'שבועות'},Adar:{14:'פורים'},'Adar II':{14:'פורים'}};
+const holCache={};
+function holiday(dt){
+  const k=iso(dt);if(k in holCache)return holCache[k];let h=null;
+  try{if(hebFmt){let d,m;hebFmt.formatToParts(new Date(dt.getFullYear(),dt.getMonth(),dt.getDate(),12)).forEach(p=>{if(p.type==='day')d=+p.value;if(p.type==='month')m=p.value});
+    h=(HOL[m]&&HOL[m][d])||null;
+    if(m==='Iyar'){const w=dt.getDay();if((d===5&&w!==5&&w!==6&&w!==1)||(d===4&&w===4)||(d===3&&w===4)||(d===6&&w===2))h='יום העצמאות'}
+  }}catch(e){}
+  return holCache[k]=h;
+}
+function diff(r){const w=worked(r);return w==null?0:w-S.quota}
+
+function monthData(y,m){
+  const n=new Date(y,m+1,0).getDate(),rows=[];let bal=0,tot=0,cnt=0;
+  for(let d=1;d<=n;d++){
+    const dt=new Date(y,m,d),k=iso(dt),r=S.days[k]||{},w=worked(r),df=diff(r);
+    if(w!=null){cnt++;tot+=w;bal+=df}
+    rows.push({d,k,dow:dt.getDay(),r,w,df,cum:bal,hol:holiday(dt)});
+  }
+  return {rows,bal,tot,cnt,n};
+}
+const isWorkday=dow=>dow<=4; // Sunday–Thursday
+
+/* ---------- today ---------- */
+let view={y:new Date().getFullYear(),m:new Date().getMonth()};
+const extra={}; // days showing one more empty row in the editor
+function setSegs(k,p,note){
+  const r=S.days[k]||{};
+  if(p)r.p=p.filter(x=>x[0]||x[1]).sort((a,b)=>(toMin(a[0]||a[1])-toMin(b[0]||b[1])));
+  if(note!==undefined)r.note=note;
+  if(!r.note)delete r.note;
+  if((r.p&&r.p.length)||r.note)S.days[k]=r;else delete S.days[k];
+  save();
+}
+function editorRows(k){const p=segs(S.days[k]).map(x=>x.slice());if(!p.length||extra[k])p.push(['','']);return p}
+function renderSegs(box,k,force){
+  if(!force&&box.contains(document.activeElement)&&document.activeElement.tagName==='INPUT')return;
+  const rows=editorRows(k),id=box.id;
+  box.innerHTML=rows.map((x,i)=>'<div class="seg-row"><label for="'+id+'i'+i+'">כניסה<input type="time" id="'+id+'i'+i+'" data-i="'+i+'" data-f="0" value="'+x[0]+'"></label>'+
+    '<label for="'+id+'o'+i+'">יציאה<input type="time" id="'+id+'o'+i+'" data-i="'+i+'" data-f="1" value="'+x[1]+'"></label>'+
+    (rows.length>1?'<button type="button" class="x" data-del="'+i+'" aria-label="מחיקת השורה">✕</button>':'<span></span>')+'</div>').join('');
+}
+function wireSegs(box,getKey){
+  box.addEventListener('change',e=>{const t=e.target;if(!t.dataset.f)return;const k=getKey(),rows=editorRows(k);
+    rows[+t.dataset.i][+t.dataset.f]=t.value;extra[k]=false;setSegs(k,rows);renderAll()});
+  box.addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;const k=getKey(),rows=editorRows(k);
+    rows.splice(+b.dataset.del,1);extra[k]=false;setSegs(k,rows);renderAll(true)});
+}
+const todayKey=()=>iso(new Date());
+function punchNow(){
+  const k=todayKey(),r=S.days[k],p=segs(r).map(x=>x.slice()),o=p.find(x=>x[0]&&!x[1]),t=nowHM();
+  if(o){o[1]=t;toast('יציאה נשמרה: '+t)}else{p.push([t,'']);toast('כניסה נשמרה: '+t)}
+  extra[k]=false;setSegs(k,p);renderAll(true);
+}
+function renderToday(force){
+  const now=new Date(),k=iso(now),r=S.days[k]||{};
+  $('todayTitle').textContent='יום '+DAYS_FULL[now.getDay()]+', '+now.getDate()+' ב'+MONTHS[now.getMonth()]+' '+now.getFullYear()+(holiday(now)?' · '+holiday(now):'');
+  const md=monthData(now.getFullYear(),now.getMonth());
+  $('balLbl').textContent=md.bal>0?'עודף בחודש '+MONTHS[now.getMonth()]:md.bal<0?'חוסר בחודש '+MONTHS[now.getMonth()]:'יתרת חודש '+MONTHS[now.getMonth()];
+  $('balBig').textContent=fmtBal(md.bal);$('balBig').className='big num '+(md.bal?cls(md.bal):'');
+  $('balSub').textContent=md.cnt+' ימי עבודה הוזנו · '+fmtDur(md.tot)+' שעות';
+  renderSegs($('tSegs'),k,force);
+  if(document.activeElement!==$('tNote'))$('tNote').value=r.note||'';
+  const open=openSeg(r);
+  $('punchNow').textContent=open?'יציאה עכשיו':(segs(r).length?'כניסה נוספת עכשיו':'כניסה עכשיו');
+  $('tAdd').hidden=!segs(r).length||!!open||!!extra[k];
+  const f=[],err=$('todayErr');err.hidden=true;
+  const line=(a,b,c)=>f.push('<div><span>'+a+'</span><b class="num '+(c||'')+'">'+b+'</b></div>');
+  const cur=now.getHours()*60+now.getMinutes();
+  if(badOrder(r)){err.textContent='שעת היציאה צריכה להיות אחרי שעת הכניסה.';err.hidden=false}
+  else if(open){
+    let closed=0;segs(r).forEach(x=>{if(x[0]&&x[1])closed+=toMin(x[1])-toMin(x[0])});
+    const i=toMin(open[0]),sofar=closed+cur-i;
+    if(cur>=i)line('עבדת עד עכשיו',fmtDur(sofar));
+    const full=i+S.quota-closed;
+    line('מכסה יומית מתמלאת ב',full<1440?toHM(full):'—');
+    const zero=full-md.bal;
+    if(md.bal!==0&&zero>i&&zero<1440)line('יתרת החודש מתאפסת ביציאה ב',toHM(zero));
+    if(cur>=i){const b=md.bal+sofar-S.quota;line('אם תצא עכשיו, יתרת החודש',fmtBal(b),cls(b))}
+    if(cur-i>=600){err.textContent='עברו יותר מ-10 שעות מאז הכניסה. שכחת להזין יציאה?';err.hidden=false}
+  }else if(worked(r)!=null){
+    const w=worked(r);line('עבדת היום',fmtDur(w));line('יתרת היום',fmtBal(w-S.quota),cls(w-S.quota));
+  }else{
+    f.push('<div><span>עוד לא הוזנה כניסה להיום.</span></div>');
+  }
+  $('todayFacts').innerHTML=f.join('');
+  // earlier days with a punch that was never completed
+  const od=Object.keys(S.days).filter(d=>d<k&&incomplete(S.days[d])).sort().reverse().slice(0,5),box=$('openDays');
+  box.hidden=!od.length;
+  box.innerHTML=od.length?'<b>חסרה שעת יציאה, והיום לא נספר ביתרה:</b>'+od.map(d=>{const p=d.split('-');return '<button type="button" data-k="'+d+'">'+(+p[2])+'.'+(+p[1])+'.'+p[0]+' · השלמה</button>'}).join(''):'';
+  // forecast
+  const done=worked(r)!=null;let rem=0;
+  for(let d=now.getDate()+(done?1:0);d<=md.n;d++){const dt=new Date(now.getFullYear(),now.getMonth(),d);if(isWorkday(dt.getDay())&&!isDayOff(holiday(dt)))rem++}
+  const g=[];
+  g.push('<div><span>ימי עבודה שנותרו (א׳–ה׳, בלי חגים)</span><b class="num">'+rem+'</b></div>');
+  if(md.bal<0&&rem>0){const per=Math.ceil(-md.bal/rem);g.push('<div><span>כדי לסגור את החוסר, בכל יום שנותר</span><b class="num">'+fmtDur(S.quota+per)+'</b></div>')}
+  else if(md.bal<0)g.push('<div><span>חוסר שיירד מהחופשה</span><b class="num neg">'+fmtDur(md.bal)+'</b></div>');
+  else if(md.bal>0&&rem>0){const per=Math.floor(md.bal/rem);g.push('<div><span>אפשר לקצר בכל יום שנותר עד</span><b class="num">'+fmtDur(per)+'</b></div>')}
+  $('forecast').innerHTML=g.join('');
+}
+const isDayOff=h=>!!h&&h!=='פורים';
+
+/* ---------- month ---------- */
+function renderMonth(){
+  document.querySelectorAll('[data-mtitle]').forEach(e=>e.textContent=MONTHS[view.m]+' '+view.y);
+  const md=monthData(view.y,view.m),tk=iso(new Date());
+  $('mBody').innerHTML=md.rows.map(x=>{
+    const c=['day'];if(!isWorkday(x.dow)||isDayOff(x.hol))c.push('off');if(x.k===tk)c.push('today');
+    return '<tr class="'+c.join(' ')+'" data-k="'+x.k+'" tabindex="0"><td><span class="num">'+x.d+'</span> '+DAYS[x.dow]+(x.r.note?' <span class="note-dot" title="יש הערה">●</span>':'')+(x.hol?'<span class="hol">'+x.hol+'</span>':'')+'</td>'+
+      '<td class="num">'+firstIn(x.r)+'</td><td class="num">'+lastOut(x.r)+(segs(x.r).length>1?' <span class="multi">×'+segs(x.r).length+'</span>':'')+'</td>'+
+      '<td class="num">'+(x.w!=null?fmtDur(x.w):'')+'</td>'+
+      '<td class="d">'+(x.w!=null?'<span class="pill num '+cls(x.df)+'">'+fmtBal(x.df)+'</span>':'')+'</td></tr>';
+  }).join('');
+  $('mTot').textContent=fmtDur(md.tot);
+  $('mBal').innerHTML='<span class="pill num '+cls(md.bal)+'">'+fmtBal(md.bal)+'</span>';
+}
+let editKey=null;
+function openEdit(k){
+  editKey=k;const p=k.split('-'),dt=new Date(+p[0],+p[1]-1,+p[2]);
+  $('editTitle').textContent='יום '+DAYS_FULL[dt.getDay()]+', '+dt.getDate()+' ב'+MONTHS[dt.getMonth()]+(holiday(dt)?' · '+holiday(dt):'');
+  renderEdit(true);$('edit').showModal();
+}
+function renderEdit(force){
+  if(!editKey)return;const r=S.days[editKey]||{};
+  renderSegs($('eSegs'),editKey,force);
+  if(document.activeElement!==$('eNote'))$('eNote').value=r.note||'';
+  const e=$('editErr');e.hidden=true;
+  if(badOrder(r)){e.textContent='שעת היציאה צריכה להיות אחרי שעת הכניסה.';e.hidden=false}
+  else if(incomplete(r)&&editKey<todayKey()){e.textContent='חסרה שעה. היום ייספר ביתרה רק כשיש גם כניסה וגם יציאה.';e.hidden=false}
+}
+
+/* ---------- stats ---------- */
+function renderStats(){
+  const md=monthData(view.y,view.m),w=md.rows.filter(x=>x.w!=null);
+  const avg=a=>a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length):null;
+  const aw=avg(w.map(x=>x.w)),ai=avg(w.map(x=>toMin(firstIn(x.r)))),ao=avg(w.map(x=>toMin(lastOut(x.r))));
+  const mx=w.reduce((a,x)=>!a||x.w>a.w?x:a,null),mn=w.reduce((a,x)=>!a||x.w<a.w?x:a,null);
+  const t=(l,v,c)=>'<div class="tile"><span>'+l+'</span><b class="num '+(c||'')+'">'+v+'</b></div>';
+  $('tiles').innerHTML=[
+    t('יתרת החודש',fmtBal(md.bal),md.bal?cls(md.bal):''),t('ימי עבודה',md.cnt),
+    t('סה״כ שעות',fmtDur(md.tot)),t('ממוצע ליום',aw!=null?fmtDur(aw):'—'),
+    t('כניסה ממוצעת',ai!=null?toHM(ai):'—'),t('יציאה ממוצעת',ao!=null?toHM(ao):'—'),
+    t('היום הארוך',mx?fmtDur(mx.w)+' ('+mx.d+'.'+(view.m+1)+')':'—'),t('היום הקצר',mn?fmtDur(mn.w)+' ('+mn.d+'.'+(view.m+1)+')':'—')
+  ].join('');
+  $('chart').innerHTML=chart(md);
+  // history
+  const keys={};Object.keys(S.days).forEach(k=>keys[k.slice(0,7)]=1);
+  const list=Object.keys(keys).sort().reverse();
+  $('hist').innerHTML=list.length?list.map(ym=>{const y=+ym.slice(0,4),m=+ym.slice(5)-1,d=monthData(y,m);
+    return '<button type="button" data-ym="'+ym+'"><span>'+MONTHS[m]+' '+y+' · '+d.cnt+' ימים</span><span class="pill num '+cls(d.bal)+'">'+fmtBal(d.bal)+'</span></button>'}).join('')
+    :'<p class="hint">עדיין אין נתונים.</p>';
+}
+function chart(md){
+  const W=340,H=170,L=30,R=10,T=12,B=22,pw=W-L-R,ph=H-T-B;
+  const pts=md.rows.filter(x=>x.w!=null);
+  if(!pts.length)return '<p class="hint" dir="rtl">אין ימים מוזנים בחודש הזה.</p>';
+  let lo=Math.min(0,...pts.map(p=>p.cum)),hi=Math.max(0,...pts.map(p=>p.cum));
+  lo=Math.floor(lo/60)*60;hi=Math.ceil(hi/60)*60;if(hi===lo)hi=lo+60;
+  const step=Math.max(60,Math.ceil((hi-lo)/60/4)*60);
+  const X=d=>L+(d-1)/(md.n-1)*pw,Y=v=>T+(hi-v)/(hi-lo)*ph;
+  let s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="יתרה מצטברת לפי ימים">';
+  for(let v=lo;v<=hi;v+=step)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)" stroke-width="'+(v===0?1.5:.6)+'"/><text x="'+(L-5)+'" y="'+(Y(v)+4)+'" text-anchor="end">'+(v/60)+'</text>';
+  [1,8,15,22,md.n].forEach(d=>s+='<text x="'+X(d)+'" y="'+(H-6)+'" text-anchor="middle">'+d+'</text>');
+  const path=pts.map((p,i)=>(i?'L':'M')+X(p.d).toFixed(1)+' '+Y(p.cum).toFixed(1)).join(' ');
+  const last=pts[pts.length-1],col=last.cum<0?'var(--neg)':'var(--pos)';
+  s+='<path d="'+path+' L'+X(last.d).toFixed(1)+' '+Y(0)+' L'+X(pts[0].d).toFixed(1)+' '+Y(0)+' Z" fill="'+col+'" fill-opacity=".14" stroke="none"/>';
+  s+='<path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="2.2" stroke-linejoin="round"/>';
+  pts.forEach(p=>s+='<circle cx="'+X(p.d).toFixed(1)+'" cy="'+Y(p.cum).toFixed(1)+'" r="2.2" fill="'+col+'"/>');
+  s+='<circle cx="'+X(last.d).toFixed(1)+'" cy="'+Y(last.cum).toFixed(1)+'" r="4.5" fill="'+col+'" stroke="var(--surface)" stroke-width="2"/>';
+  return s+'</svg>';
+}
+
+/* ---------- backup ---------- */
+function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2600)}
+function download(name,text,type){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+function csv(){
+  const rows=[['תאריך','יום','כניסה','יציאה','שעות עבודה','יתרה בדקות','הערות','כל ההחתמות']];
+  Object.keys(S.days).sort().forEach(k=>{const r=S.days[k],p=k.split('-'),dt=new Date(+p[0],+p[1]-1,+p[2]),w=worked(r);
+    rows.push([p[2]+'/'+p[1]+'/'+p[0],DAYS[dt.getDay()],firstIn(r),lastOut(r),w!=null?fmtDur(w):'',w!=null?w-S.quota:0,(r.note||'').replace(/"/g,'""'),segs(r).map(x=>x[0]+'-'+x[1]).join(' ; ')])});
+  return '﻿'+rows.map(r=>r.map(c=>'"'+c+'"').join(',')).join('\r\n');
+}
+function restore(text){
+  try{const o=JSON.parse(text);if(!o||typeof o.days!=='object')throw 0;
+    S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
+  catch(e){toast('הטקסט אינו גיבוי תקין')}
+}
+
+/* ---------- screenshot reading ---------- */
+let ocrWorker=null,ocrAs='in';
+function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
+function setOcrAs(v){ocrAs=v;$('ocrAsIn').setAttribute('aria-pressed',v==='in');$('ocrAsOut').setAttribute('aria-pressed',v==='out')}
+async function readShot(file){
+  setOcrAs(openSeg(S.days[todayKey()])?'out':'in');
+  $('ocrImg').src=URL.createObjectURL(file);$('ocrChips').innerHTML='';$('ocrTime').value='';
+  $('ocrStatus').textContent='קורא את התמונה…';
+  if(!$('ocr').open)$('ocr').showModal();
+  try{
+    if(!window.Tesseract)await loadScript('./vendor/tesseract.min.js');
+    if(!ocrWorker)ocrWorker=await Tesseract.createWorker('eng',1,{
+      workerPath:new URL('./vendor/worker.min.js',location.href).href,
+      corePath:new URL('./vendor/',location.href).href,
+      langPath:new URL('./vendor/',location.href).href,workerBlobURL:false});
+    const res=await ocrWorker.recognize(file);
+    const found=[];
+    // prefer larger text: the punch time is usually the biggest clock on the screen
+    const words=(res.data.words||[]).map(w=>({t:w.text,h:w.bbox?w.bbox.y1-w.bbox.y0:0}));
+    const scan=(txt,h)=>{const re=/(^|[^\d])([01]?\d|2[0-3])\s?[:.]\s?([0-5]\d)(?!\d)/g;let m;
+      while((m=re.exec(txt)))found.push({t:pad(+m[2])+':'+m[3],h})};
+    words.forEach(w=>scan(w.t,w.h));
+    if(!found.length)scan(res.data.text||'',0);
+    const uniq=[];found.sort((a,b)=>b.h-a.h).forEach(f=>{if(!uniq.includes(f.t))uniq.push(f.t)});
+    if(!uniq.length){$('ocrStatus').textContent='לא נמצאה שעה בתמונה. אפשר להזין אותה ידנית כאן.';return}
+    $('ocrStatus').textContent=uniq.length>1?'נמצאו כמה שעות. בחר את הנכונה:':'נמצאה שעה:';
+    $('ocrChips').innerHTML=uniq.slice(0,8).map((t,i)=>'<button type="button" class="chip num" aria-pressed="'+(i===0)+'" data-t="'+t+'">'+t+'</button>').join('');
+    $('ocrTime').value=uniq[0];
+  }catch(e){
+    $('ocrStatus').textContent='קריאת התמונה אינה זמינה כאן. אפשר להזין את השעה ידנית.';
+  }
+}
+
+/* ---------- wiring ---------- */
+function renderAll(force){$('demoBar').hidden=!demo;renderToday(force);renderMonth();renderStats();if($('edit').open)renderEdit(force);
+  if(document.activeElement!==$('quota'))$('quota').value=toHM(S.quota);
+  $('lastBackup').textContent=S.lastBackup?'גיבוי אחרון נשלח ב-'+S.lastBackup.split('-').reverse().join('.'):'עדיין לא נשלח גיבוי.'}
+function showTab(t){
+  ['today','month','stats','settings'].forEach(n=>$('v-'+n).hidden=n!==t);
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  window.scrollTo(0,0);
+}
+function start(){
+  load();
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+  wireSegs($('tSegs'),todayKey);wireSegs($('eSegs'),()=>editKey);
+  $('tNote').onchange=e=>{setSegs(todayKey(),null,e.target.value.trim());renderAll()};
+  $('punchNow').onclick=punchNow;
+  $('tAdd').onclick=()=>{extra[todayKey()]=true;renderAll(true)};
+  $('openDays').onclick=e=>{const b=e.target.closest('button');if(b)openEdit(b.dataset.k)};
+  document.querySelectorAll('.mnav button').forEach(b=>b.onclick=()=>{
+    const d=new Date(view.y,view.m+ +b.dataset.m,1);view={y:d.getFullYear(),m:d.getMonth()};renderMonth();renderStats()});
+  $('mBody').onclick=e=>{const tr=e.target.closest('tr');if(tr)openEdit(tr.dataset.k)};
+  $('mBody').onkeydown=e=>{if(e.key==='Enter'){const tr=e.target.closest('tr');if(tr)openEdit(tr.dataset.k)}};
+  $('eAdd').onclick=()=>{extra[editKey]=true;renderEdit(true)};
+  $('eNote').onchange=e=>{setSegs(editKey,null,e.target.value.trim());renderAll()};
+  $('eClear').onclick=()=>{delete S.days[editKey];extra[editKey]=false;save();$('edit').close();renderAll(true)};
+  $('eClose').onclick=()=>$('edit').close();
+  $('edit').addEventListener('close',()=>{if(editKey)extra[editKey]=false;renderAll(true)});
+  $('hist').onclick=e=>{const b=e.target.closest('button');if(!b)return;view={y:+b.dataset.ym.slice(0,4),m:+b.dataset.ym.slice(5)-1};renderMonth();renderStats();window.scrollTo(0,0)};
+  $('quota').onchange=e=>{const v=toMin(e.target.value);if(v>0){S.quota=v;save();renderAll()}};
+  $('expJson').onclick=()=>download('hours-backup-'+iso(new Date())+'.json',JSON.stringify(S),'application/json');
+  $('shareJson').onclick=()=>{
+    const file=new File([JSON.stringify(S)],'hours-backup-'+iso(new Date())+'.txt',{type:'text/plain'});
+    if(navigator.canShare&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:'גיבוי שעות'}).then(()=>{S.lastBackup=iso(new Date());save();renderAll()}).catch(()=>{});
+    else{download(file.name,JSON.stringify(S),'text/plain');toast('הקובץ נשמר בהורדות')}
+  };
+  $('copyJson').onclick=()=>{const t=JSON.stringify(S);
+    (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('הגיבוי הועתק')).catch(()=>{$('impText').value=t;$('impText').select();toast('סמן והעתק את הטקסט')})};
+  $('expCsv').onclick=()=>download('hours-'+iso(new Date())+'.csv',csv(),'text/csv');
+  $('impBtn').onclick=()=>restore($('impText').value);
+  $('impFileBtn').onclick=()=>$('impFile').click();
+  $('impFile').onchange=e=>{const f=e.target.files[0];if(f)f.text().then(restore);e.target.value=''};
+  $('wipe').onclick=()=>$('wipeConfirm').hidden=false;
+  $('wipeNo').onclick=()=>$('wipeConfirm').hidden=true;
+  $('wipeYes').onclick=()=>{S={days:{},quota:S.quota};save();$('wipeConfirm').hidden=true;renderAll();toast('הנתונים נמחקו')};
+  $('shotBtn').onclick=()=>$('shotFile').click();
+  $('shotFile').onchange=e=>{const f=e.target.files[0];if(f)readShot(f);e.target.value=''};
+  $('ocrChips').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;
+    $('ocrChips').querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));$('ocrTime').value=b.dataset.t};
+  $('ocrAsIn').onclick=()=>setOcrAs('in');$('ocrAsOut').onclick=()=>setOcrAs('out');
+  $('ocrCancel').onclick=()=>$('ocr').close();
+  $('ocrSave').onclick=()=>{const t=$('ocrTime').value;if(!t){$('ocrStatus').textContent='צריך לבחור או להזין שעה.';return}
+    const k=todayKey(),p=segs(S.days[k]).map(x=>x.slice()),o=p.find(x=>x[0]&&!x[1]);
+    if(ocrAs==='out'&&o)o[1]=t;else if(ocrAs==='out')p.push(['',t]);else p.push([t,'']);
+    setSegs(k,p);renderAll(true);$('ocr').close();showTab('today');toast((ocrAs==='in'?'כניסה':'יציאה')+' נשמרה: '+t)};
+  renderAll();
+  setInterval(()=>renderToday(),30000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderAll()});
+  // installed app: offline support + receiving a shared screenshot
+  try{
+    if('serviceWorker' in navigator&&!window.__SEED__)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    if(/[?&]shared=1/.test(location.search)&&window.caches){
+      history.replaceState(null,'','./');
+      caches.open('shared').then(c=>c.match('shared-image').then(r=>{if(!r)return;c.delete('shared-image');return r.blob().then(readShot)})).catch(()=>{});
+    }
+  }catch(e){}
+}
+start();
+})();
+</script>
+</body></html>
