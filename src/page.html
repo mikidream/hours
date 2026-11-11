@@ -210,7 +210,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.6</p>
+    <p class="hint" id="ver">גרסה 1.7</p>
   </section>
 
   <dialog id="edit">
@@ -514,7 +514,7 @@ function csv(){
 }
 function restore(text){
   try{const o=JSON.parse(text);if(!o||typeof o.days!=='object')throw 0;
-    S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup,autoIn:o.autoIn,autoOut:o.autoOut};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
+    S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup,autoIn:o.autoIn,autoOut:o.autoOut,linkMode:o.linkMode};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
   catch(e){toast('הטקסט אינו גיבוי תקין')}
 }
 
@@ -617,6 +617,8 @@ function start(){
   // opened through the "punch now" shortcut or an automation: record entry/exit right away
   if(/[?&]punch=1/.test(location.search)){
     try{history.replaceState(null,'',location.pathname)}catch(e){}
+    // once the Hilan automation is in use, plain openings stop recording times by themselves
+    if(!S.linkMode){S.linkMode=true;S.autoIn=false;S.autoOut=false;save();renderAll()}
     if(Date.now()-(S.lastPunch||0)>5*60000)punchNow();else toast('כבר נרשמה החתמה בדקות האחרונות');
   }else autoIn();
   setInterval(()=>renderToday(),30000);
