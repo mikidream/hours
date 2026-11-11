@@ -200,7 +200,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.2</p>
+    <p class="hint" id="ver">גרסה 1.3</p>
   </section>
 
   <dialog id="edit">
@@ -575,6 +575,12 @@ function start(){
     const k=todayKey(),p=segs(S.days[k]).map(x=>x.slice()),o=p.find(x=>x[0]&&!x[1]);
     if(ocrAs==='out'&&o)o[1]=t;else if(ocrAs==='out')p.push(['',t]);else p.push([t,'']);
     setSegs(k,p);renderAll(true);$('ocr').close();showTab('today');toast((ocrAs==='in'?'כניסה':'יציאה')+' נשמרה: '+t)};
+  // one-time import link: #import=<backup>, adds days that are not already filled in
+  try{const m=/^#import=(.+)$/.exec(location.hash);
+    if(m){const o=JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g,'+').replace(/_/g,'/')))));let n=0;
+      Object.keys(o.days||{}).forEach(k=>{if(!S.days[k]){S.days[k]=o.days[k];n++}});
+      migrate();save();try{history.replaceState(null,'',location.pathname)}catch(e){location.hash=''}setTimeout(()=>toast('נוספו '+n+' ימים מהאקסל'),300)}
+  }catch(e){}
   renderAll();
   setInterval(()=>renderToday(),30000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderAll()});
