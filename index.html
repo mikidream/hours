@@ -193,8 +193,8 @@ dialog h3{margin:0;font-size:18px}
     <div class="card">
       <h2>הזנה אוטומטית</h2>
       <label class="check" for="autoIn"><input type="checkbox" id="autoIn">כניסה נרשמת לבד בפתיחה הראשונה ביום</label>
-      <p class="hint" style="margin:0">רק בימים א׳–ה׳ שאינם חג, לפני 12:00, וכשעוד לא הוזן כלום להיום. אפשר לבטל או לתקן מיד.</p>
-      <label class="check" for="autoOut"><input type="checkbox" id="autoOut">יציאה נרשמת לבד בפתיחה אחרי 12:00</label>
+      <p class="hint" style="margin:0">רק בימים א׳–ה׳ שאינם חג, בין 07:00 ל-12:00, וכשעוד לא הוזן כלום להיום. אפשר לבטל או לתקן מיד.</p>
+      <label class="check" for="autoOut"><input type="checkbox" id="autoOut">יציאה נרשמת לבד בפתיחה בין 12:01 ל-20:00</label>
       <p class="hint" style="margin:0">רק כשיש כניסה פתוחה להיום. אם לחצת ביטול, היציאה לא תירשם שוב לבד במשך שעה.</p>
     </div>
     <div class="card">
@@ -222,7 +222,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.5</p>
+    <p class="hint" id="ver">גרסה 1.6</p>
   </section>
 
   <dialog id="edit">
@@ -382,9 +382,9 @@ function punchNow(onUndo){
 // Opening the app records the time by itself: before noon the first opening of a workday is the entry,
 // from noon on an opening while an entry is still open is the exit. Both can be undone or edited.
 function autoIn(){
-  const now=new Date(),h=now.getHours(),r=S.days[todayKey()];
-  if(demo||h<5)return;
-  if(h<12){
+  const now=new Date(),m=now.getHours()*60+now.getMinutes(),r=S.days[todayKey()];
+  if(demo||m<7*60||m>20*60)return; // entry 07:00-12:00, exit 12:01-20:00
+  if(m<=12*60){
     if(S.autoIn===false||!isWorkday(now.getDay())||isDayOff(holiday(now))||segs(r).length)return;
     punchNow();
   }else{
