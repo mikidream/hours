@@ -151,6 +151,7 @@ dialog h3{margin:0;font-size:18px}
       <div class="err" id="todayErr" hidden></div>
       <div class="facts" id="todayFacts"></div>
       <label class="hint" for="tNote">הערה<input type="text" id="tNote" placeholder="למשל: חצי יום חופש"></label>
+      <button class="btn wide danger" id="tClear" type="button">ניקוי היום</button>
       <button class="btn wide" id="shotBtn" type="button">קריאת שעה מצילום מסך של חילן</button>
       <input type="file" id="shotFile" accept="image/*" hidden>
     </div>
@@ -222,7 +223,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.7</p>
+    <p class="hint" id="ver">גרסה 1.8</p>
   </section>
 
   <dialog id="edit">
@@ -405,6 +406,7 @@ function renderToday(force){
   const open=openSeg(r);
   $('punchNow').textContent=open?'יציאה עכשיו':(segs(r).length?'כניסה נוספת עכשיו':'כניסה עכשיו');
   $('tAdd').hidden=!segs(r).length||!!open||!!extra[k];
+  $('tClear').hidden=!segs(r).length&&!r.note;
   const f=[],err=$('todayErr');err.hidden=true;
   const line=(a,b,c)=>f.push('<div><span>'+a+'</span><b class="num '+(c||'')+'">'+b+'</b></div>');
   const cur=now.getHours()*60+now.getMinutes();
@@ -579,6 +581,9 @@ function start(){
   wireSegs($('tSegs'),todayKey);wireSegs($('eSegs'),()=>editKey);
   $('tNote').onchange=e=>{setSegs(todayKey(),null,e.target.value.trim());renderAll()};
   $('punchNow').onclick=()=>punchNow();
+  $('tClear').onclick=()=>{const k=todayKey(),before=S.days[k]?JSON.stringify(S.days[k]):null;if(!before)return;
+    delete S.days[k];extra[k]=false;S.outUndo=Date.now();save();renderAll(true);
+    toast('היום נוקה',()=>{S.days[k]=JSON.parse(before);save();renderAll(true)})};
   $('autoIn').onchange=e=>{S.autoIn=e.target.checked;save()};
   $('autoOut').onchange=e=>{S.autoOut=e.target.checked;save()};
   $('tAdd').onclick=()=>{extra[todayKey()]=true;renderAll(true)};
