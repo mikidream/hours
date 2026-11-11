@@ -126,6 +126,9 @@ dialog h3{margin:0;font-size:18px}
 #ocrImg{max-height:180px;object-fit:contain;border-radius:8px;background:var(--sunken)}
 #toast{position:fixed;inset:auto 16px calc(84px + env(safe-area-inset-bottom,0px)) 16px;margin:0 auto;max-width:420px;background:var(--fg);color:var(--bg);
   border-radius:10px;padding:10px 14px;text-align:center;font-weight:500;z-index:9}
+#toast button{margin-inline-start:14px;border:1px solid currentColor;background:none;color:inherit;border-radius:8px;padding:4px 12px;font-weight:700}
+.check{display:flex;gap:10px;align-items:center;font-size:15px}
+.check input{width:22px;height:22px}
 @media (prefers-reduced-motion:no-preference){ .btn:active,.chip:active{transform:scale(.97)} }
 </style>
 
@@ -188,6 +191,11 @@ dialog h3{margin:0;font-size:18px}
       <label class="hint" for="quota">שעות ליום עבודה<input type="time" id="quota"></label>
     </div>
     <div class="card">
+      <h2>הזנה אוטומטית</h2>
+      <label class="check" for="autoIn"><input type="checkbox" id="autoIn">כניסה נרשמת לבד בפתיחה הראשונה ביום</label>
+      <p class="hint" style="margin:0">רק בימים א׳–ה׳ שאינם חג, לפני 12:00, וכשעוד לא הוזן כלום להיום. אפשר לבטל או לתקן מיד.</p>
+    </div>
+    <div class="card">
       <h2>גיבוי</h2>
       <p class="hint" style="margin:0">הנתונים נשמרים רק בטלפון הזה. כדאי לשלוח גיבוי פעם בחודש.</p>
       <p class="hint" style="margin:0" id="lastBackup"></p>
@@ -212,7 +220,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.3</p>
+    <p class="hint" id="ver">גרסה 1.4</p>
   </section>
 
   <dialog id="edit">
@@ -363,8 +371,18 @@ function wireSegs(box,getKey){
 const todayKey=()=>iso(new Date());
 function punchNow(){
   const k=todayKey(),r=S.days[k],p=segs(r).map(x=>x.slice()),o=p.find(x=>x[0]&&!x[1]),t=nowHM();
-  if(o){o[1]=t;toast('יציאה נשמרה: '+t)}else{p.push([t,'']);toast('כניסה נשמרה: '+t)}
-  extra[k]=false;setSegs(k,p);renderAll(true);
+  const before=r?JSON.stringify(r):null;
+  const undo=()=>{if(before)S.days[k]=JSON.parse(before);else delete S.days[k];save();renderAll(true)};
+  const msg=o?'יציאה נשמרה: '+t:'כניסה נשמרה: '+t;
+  if(o)o[1]=t;else p.push([t,'']);
+  extra[k]=false;setSegs(k,p);S.lastPunch=Date.now();save();renderAll(true);toast(msg,undo);
+}
+// first opening of a workday before noon records the entry time by itself (can be undone or edited)
+function autoIn(){
+  const now=new Date();
+  if(S.autoIn===false||demo||now.getHours()>=12||now.getHours()<5)return;
+  if(!isWorkday(now.getDay())||isDayOff(holiday(now))||segs(S.days[todayKey()]).length)return;
+  punchNow();
 }
 function renderToday(force){
   const now=new Date(),k=iso(now),r=S.days[k]||{};
@@ -485,7 +503,9 @@ function chart(md){
 }
 
 /* ---------- backup ---------- */
-function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2600)}
+function toast(msg,undo){const t=$('toast');t.textContent=msg;
+  if(undo){const b=document.createElement('button');b.type='button';b.textContent='ביטול';b.onclick=()=>{undo();t.hidden=true};t.appendChild(b)}
+  t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,undo?12000:2600)}
 function download(name,text,type){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();
 }
@@ -497,7 +517,7 @@ function csv(){
 }
 function restore(text){
   try{const o=JSON.parse(text);if(!o||typeof o.days!=='object')throw 0;
-    S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
+    S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup,autoIn:o.autoIn};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
   catch(e){toast('הטקסט אינו גיבוי תקין')}
 }
 
@@ -537,6 +557,7 @@ async function readShot(file){
 /* ---------- wiring ---------- */
 function renderAll(force){$('demoBar').hidden=!demo;renderToday(force);renderMonth();renderStats();if($('edit').open)renderEdit(force);
   if(document.activeElement!==$('quota'))$('quota').value=toHM(S.quota);
+  $('autoIn').checked=S.autoIn!==false;
   $('lastBackup').textContent=S.lastBackup?'גיבוי אחרון נשלח ב-'+S.lastBackup.split('-').reverse().join('.'):'עדיין לא נשלח גיבוי.'}
 function showTab(t){
   ['today','month','stats','settings'].forEach(n=>$('v-'+n).hidden=n!==t);
@@ -549,6 +570,7 @@ function start(){
   wireSegs($('tSegs'),todayKey);wireSegs($('eSegs'),()=>editKey);
   $('tNote').onchange=e=>{setSegs(todayKey(),null,e.target.value.trim());renderAll()};
   $('punchNow').onclick=punchNow;
+  $('autoIn').onchange=e=>{S.autoIn=e.target.checked;save()};
   $('tAdd').onclick=()=>{extra[todayKey()]=true;renderAll(true)};
   $('openDays').onclick=e=>{const b=e.target.closest('button');if(b)openEdit(b.dataset.k)};
   document.querySelectorAll('.mnav button').forEach(b=>b.onclick=()=>{
@@ -594,8 +616,13 @@ function start(){
       migrate();save();try{history.replaceState(null,'',location.pathname)}catch(e){location.hash=''}setTimeout(()=>toast('נוספו '+n+' ימים מהאקסל'),300)}
   }catch(e){}
   renderAll();
+  // opened through the "punch now" shortcut or an automation: record entry/exit right away
+  if(/[?&]punch=1/.test(location.search)){
+    try{history.replaceState(null,'',location.pathname)}catch(e){}
+    if(Date.now()-(S.lastPunch||0)>5*60000)punchNow();else toast('כבר נרשמה החתמה בדקות האחרונות');
+  }else autoIn();
   setInterval(()=>renderToday(),30000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderAll()});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderAll();autoIn()}});
   // installed app: offline support + receiving a shared screenshot
   try{
     if('serviceWorker' in navigator&&!window.__SEED__)navigator.serviceWorker.register('./sw.js').catch(()=>{});
