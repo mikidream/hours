@@ -223,7 +223,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.8</p>
+    <p class="hint" id="ver">גרסה 1.9</p>
   </section>
 
   <dialog id="edit">
@@ -514,8 +514,8 @@ function chart(md){
 }
 
 /* ---------- backup ---------- */
-function toast(msg,undo){const t=$('toast');t.textContent=msg;
-  if(undo){const b=document.createElement('button');b.type='button';b.textContent='ביטול';b.onclick=()=>{undo();t.hidden=true};t.appendChild(b)}
+function toast(msg,undo,label){const t=$('toast');t.textContent=msg;
+  if(undo){const b=document.createElement('button');b.type='button';b.textContent=label||'ביטול';b.onclick=()=>{undo();t.hidden=true};t.appendChild(b)}
   t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,undo?12000:2600)}
 function download(name,text,type){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();
@@ -582,7 +582,7 @@ function start(){
   $('tNote').onchange=e=>{setSegs(todayKey(),null,e.target.value.trim());renderAll()};
   $('punchNow').onclick=()=>punchNow();
   $('tClear').onclick=()=>{const k=todayKey(),before=S.days[k]?JSON.stringify(S.days[k]):null;if(!before)return;
-    delete S.days[k];extra[k]=false;S.outUndo=Date.now();save();renderAll(true);
+    delete S.days[k];extra[k]=false;S.outUndo=Date.now();S.lastPunch=0;save();renderAll(true);
     toast('היום נוקה',()=>{S.days[k]=JSON.parse(before);save();renderAll(true)})};
   $('autoIn').onchange=e=>{S.autoIn=e.target.checked;save()};
   $('autoOut').onchange=e=>{S.autoOut=e.target.checked;save()};
@@ -594,7 +594,7 @@ function start(){
   $('mBody').onkeydown=e=>{if(e.key==='Enter'){const tr=e.target.closest('tr');if(tr)openEdit(tr.dataset.k)}};
   $('eAdd').onclick=()=>{extra[editKey]=true;renderEdit(true)};
   $('eNote').onchange=e=>{setSegs(editKey,null,e.target.value.trim());renderAll()};
-  $('eClear').onclick=()=>{delete S.days[editKey];extra[editKey]=false;save();$('edit').close();renderAll(true)};
+  $('eClear').onclick=()=>{delete S.days[editKey];extra[editKey]=false;if(editKey===todayKey())S.lastPunch=0;save();$('edit').close();renderAll(true)};
   $('eClose').onclick=()=>$('edit').close();
   $('edit').addEventListener('close',()=>{if(editKey)extra[editKey]=false;renderAll(true)});
   $('hist').onclick=e=>{const b=e.target.closest('button');if(!b)return;view={y:+b.dataset.ym.slice(0,4),m:+b.dataset.ym.slice(5)-1};renderMonth();renderStats();window.scrollTo(0,0)};
@@ -636,7 +636,8 @@ function start(){
     try{history.replaceState(null,'',location.pathname)}catch(e){}
     // once the Hilan automation is in use, plain openings stop recording times by themselves
     if(!S.linkMode){S.linkMode=true;S.autoIn=false;S.autoOut=false;save();renderAll()}
-    if(Date.now()-(S.lastPunch||0)>5*60000)punchNow();else toast('כבר נרשמה החתמה בדקות האחרונות');
+    if(Date.now()-(S.lastPunch||0)>5*60000)punchNow();
+    else toast('לא נרשם: כבר נרשמה החתמה ב-5 הדקות האחרונות',()=>punchNow(),'לרשום בכל זאת');
   }else autoIn();
   setInterval(()=>renderToday(),30000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderAll();autoIn()}});
