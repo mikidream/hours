@@ -503,7 +503,7 @@ function chart(md){
 
 /* ---------- backup ---------- */
 function toast(msg,undo,label){const t=$('toast');t.textContent=msg;
-  if(undo){const b=document.createElement('button');b.type='button';b.textContent=label||'ביטול';b.onclick=()=>{undo();t.hidden=true};t.appendChild(b)}
+  if(undo){const b=document.createElement('button');b.type='button';b.textContent=label||'ביטול';b.onclick=()=>{t.hidden=true;undo()};t.appendChild(b)}
   t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,undo?12000:2600)}
 function download(name,text,type){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();
