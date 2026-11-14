@@ -187,6 +187,16 @@ dialog h3{margin:0;font-size:18px}
       <p class="hint" style="margin:0">רק כשיש כניסה פתוחה להיום. אם לחצת ביטול, היציאה לא תירשם שוב לבד במשך שעה.</p>
     </div>
     <div class="card">
+      <h2>גיבוי אוטומטי ל-Google Drive</h2>
+      <p class="hint" style="margin:0">אחרי כל שינוי, קובץ האקסל וקובץ הגיבוי עולים לבד לתיקייה hours-backup ב-Drive שלך.</p>
+      <label class="hint" for="syncUrl">כתובת החיבור (מתחילה ב-https://script.google.com)<input type="text" id="syncUrl" dir="ltr" inputmode="url" autocomplete="off"></label>
+      <div class="row">
+        <button class="btn primary" id="syncSave" type="button">שמירה והעלאה עכשיו</button>
+        <button class="btn danger" id="syncOff" type="button">ניתוק</button>
+      </div>
+      <p class="hint" style="margin:0" id="syncStatus"></p>
+    </div>
+    <div class="card">
       <h2>גיבוי</h2>
       <p class="hint" style="margin:0">הנתונים נשמרים רק בטלפון הזה. כדאי לשלוח גיבוי פעם בחודש.</p>
       <p class="hint" style="margin:0" id="lastBackup"></p>
@@ -211,7 +221,7 @@ dialog h3{margin:0;font-size:18px}
         <button class="btn" id="wipeNo" type="button">ביטול</button>
       </div>
     </div>
-    <p class="hint" id="ver">גרסה 1.9</p>
+    <p class="hint" id="ver">גרסה 2.0</p>
   </section>
 
   <dialog id="edit">
@@ -282,7 +292,7 @@ function migrate(){
     delete r.in;delete r.out;
     if(!(r.p&&r.p.length)&&!r.note)delete S.days[k]});
 }
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}syncSoon()}
 
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
@@ -508,12 +518,48 @@ function toast(msg,undo,label){const t=$('toast');t.textContent=msg;
 function download(name,text,type){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();
 }
-function csv(){
+function csv(ym){
   const rows=[['תאריך','יום','כניסה','יציאה','שעות עבודה','יתרה בדקות','הערות','כל ההחתמות']];
-  Object.keys(S.days).sort().forEach(k=>{const r=S.days[k],p=k.split('-'),dt=new Date(+p[0],+p[1]-1,+p[2]),w=worked(r);
+  Object.keys(S.days).filter(k=>!ym||k.slice(0,7)===ym).sort().forEach(k=>{const r=S.days[k],p=k.split('-'),dt=new Date(+p[0],+p[1]-1,+p[2]),w=worked(r);
     rows.push([p[2]+'/'+p[1]+'/'+p[0],DAYS[dt.getDay()],firstIn(r),lastOut(r),w!=null?fmtDur(w):'',w!=null?w-S.quota:0,(r.note||'').replace(/"/g,'""'),segs(r).map(x=>x[0]+'-'+x[1]).join(' ; ')])});
   return '﻿'+rows.map(r=>r.map(c=>'"'+c+'"').join(',')).join('\r\n');
 }
+/* ---------- automatic upload to the user's own Google Drive (through their Apps Script address) ---------- */
+// Kept apart from the data so the address never ends up inside a backup file.
+const SKEY='hours-sync-v1';
+let Y={url:'',hash:'',last:0,err:''},syncTimer=null,syncBusy=false;
+try{Y=Object.assign(Y,JSON.parse(localStorage.getItem(SKEY)||'{}'))}catch(e){}
+const saveSync=()=>{try{localStorage.setItem(SKEY,JSON.stringify(Y))}catch(e){}};
+function dataHash(){const t=JSON.stringify([S.days,S.quota]);let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return t.length+':'+h}
+function syncFiles(){
+  const now=new Date(),prev=new Date(now.getFullYear(),now.getMonth()-1,1),ym=d=>d.getFullYear()+'-'+pad(d.getMonth()+1);
+  const files=[{name:'hours.csv',content:csv()},{name:'hours-backup.json',content:JSON.stringify(S)},{name:'hours-'+ym(now)+'.csv',content:csv(ym(now))}];
+  if(Object.keys(S.days).some(k=>k.slice(0,7)===ym(prev)))files.push({name:'hours-'+ym(prev)+'.csv',content:csv(ym(prev))});
+  return files;
+}
+// uploads only when the data differs from what was last uploaded
+function syncNow(force,leaving){
+  if(!Y.url||demo||syncBusy)return Promise.resolve();
+  const h=dataHash();if(!force&&h===Y.hash)return Promise.resolve();
+  if(navigator.onLine===false){Y.err='אין אינטרנט, יעלה בפתיחה הבאה';saveSync();renderSync();return Promise.resolve()}
+  const body=JSON.stringify({files:syncFiles()});
+  syncBusy=true;renderSync();
+  return fetch(Y.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body,keepalive:!!leaving&&body.length<60000})
+    .then(r=>r.text()).then(t=>{let o;try{o=JSON.parse(t)}catch(e){throw new Error('התשובה לא תקינה. בדוק את הכתובת ושההרשאה היא Anyone')}if(!o||!o.ok)throw new Error((o&&o.error)||'תשובה לא תקינה');Y.hash=h;Y.last=Date.now();Y.err=''})
+    .catch(e=>{Y.err=String(e&&e.message||e)})
+    .then(()=>{syncBusy=false;saveSync();renderSync()});
+}
+function syncSoon(){if(!Y.url)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(),5000)}
+function renderSync(){
+  const el=$('syncStatus');if(!el)return;
+  if(document.activeElement!==$('syncUrl'))$('syncUrl').value=Y.url;
+  $('syncOff').hidden=!Y.url;
+  const d=Y.last?new Date(Y.last):null,when=d?d.getDate()+'.'+(d.getMonth()+1)+' בשעה '+pad(d.getHours())+':'+pad(d.getMinutes()):'';
+  el.textContent=!Y.url?'לא מחובר.':syncBusy?'מעלה…':Y.err?'ההעלאה האחרונה נכשלה: '+Y.err+(when?' · הצלחה אחרונה: '+when:''):
+    when?(dataHash()===Y.hash?'מעודכן. העלאה אחרונה: ':'יש שינויים שעוד לא עלו. העלאה אחרונה: ')+when:'מחובר, עוד לא הועלה.';
+  el.className='hint'+(Y.url&&Y.err&&!syncBusy?' err':'');
+}
+
 function restore(text){
   try{const o=JSON.parse(text);if(!o||typeof o.days!=='object')throw 0;
     S={days:o.days,quota:+o.quota||480,lastBackup:o.lastBackup,autoIn:o.autoIn,autoOut:o.autoOut,linkMode:o.linkMode};migrate();save();demo=false;renderAll();toast('הגיבוי שוחזר')}
@@ -556,6 +602,7 @@ async function readShot(file){
 /* ---------- wiring ---------- */
 function renderAll(force){$('demoBar').hidden=!demo;renderToday(force);renderMonth();renderStats();if($('edit').open)renderEdit(force);
   if(document.activeElement!==$('quota'))$('quota').value=toHM(S.quota);
+  renderSync();
   $('autoIn').checked=S.autoIn!==false;$('autoOut').checked=S.autoOut!==false;
   $('lastBackup').textContent=S.lastBackup?'גיבוי אחרון נשלח ב-'+S.lastBackup.split('-').reverse().join('.'):'עדיין לא נשלח גיבוי.'}
 function showTab(t){
@@ -587,6 +634,11 @@ function start(){
   $('edit').addEventListener('close',()=>{if(editKey)extra[editKey]=false;renderAll(true)});
   $('hist').onclick=e=>{const b=e.target.closest('button');if(!b)return;view={y:+b.dataset.ym.slice(0,4),m:+b.dataset.ym.slice(5)-1};renderMonth();renderStats();window.scrollTo(0,0)};
   $('quota').onchange=e=>{const v=toMin(e.target.value);if(v>0){S.quota=v;save();renderAll()}};
+  $('syncSave').onclick=()=>{const u=$('syncUrl').value.trim();
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u)){toast('הכתובת צריכה להתחיל ב-https://script.google.com/macros/s/ ולהסתיים ב-/exec');return}
+    Y.url=u;Y.err='';saveSync();syncNow(true).then(()=>toast(Y.err?'ההעלאה נכשלה':'הועלה ל-Drive'))};
+  $('syncOff').onclick=()=>{Y={url:'',hash:'',last:0,err:''};saveSync();renderSync();toast('הגיבוי האוטומטי נותק')};
+  window.addEventListener('online',()=>syncNow());
   $('expJson').onclick=()=>download('hours-backup-'+iso(new Date())+'.json',JSON.stringify(S),'application/json');
   $('shareJson').onclick=()=>{
     const file=new File([JSON.stringify(S)],'hours-backup-'+iso(new Date())+'.txt',{type:'text/plain'});
@@ -628,7 +680,8 @@ function start(){
     else toast('לא נרשם: כבר נרשמה החתמה ב-5 הדקות האחרונות',()=>punchNow(),'לרשום בכל זאת');
   }else autoIn();
   setInterval(()=>renderToday(),30000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderAll();autoIn()}});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderAll();autoIn();syncNow()}else{clearTimeout(syncTimer);syncNow(false,true)}});
+  syncNow();
   // installed app: offline support + receiving a shared screenshot
   try{
     if('serviceWorker' in navigator&&!window.__SEED__)navigator.serviceWorker.register('./sw.js').catch(()=>{});
